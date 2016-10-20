@@ -1,0 +1,100 @@
+#!/usr/bin/env python3
+
+'''
+Ethernet learning switch in Python: HW3.
+
+Note that this file currently has the code to implement a "hub"
+in it, not a learning switch.  (I.e., it's currently a switch
+that doesn't learn.)
+'''
+from switchyard.lib.address import *
+from switchyard.lib.packet import *
+from switchyard.lib.common import *
+import time
+
+
+
+def switchy_main(net):
+    my_interfaces = net.interfaces() 
+    print("\nmy_interfaces: " + str(my_interfaces))
+    mymacs = [intf.ethaddr for intf in my_interfaces]
+    print("mymacs: " + str(mymacs) + "\n")
+    
+    ft = {}
+    while True:
+        try:
+            dev,packet = net.recv_packet() #try to receive a pkt from any available device, block until one is received
+            print("dev: " + dev)
+        except NoPackets:
+            continue
+        except Shutdown:
+            return
+       
+
+	# If we get here, then a packet MUST have been received
+
+        print("packet src MAC: " + str(packet[0].src)) # TODO remove
+        #print("packet destination: " + str(packet[0].dst))
+        #print("packet source: " + str(packet[0].src))
+        #print("net name: " + str(net.name)) #hub tests
+        print("full packet: " + str(packet)) # TODO remove
+
+        # Create an empty forwarding table, to be populated later
+        #ft = {}
+        # we index the forwarding table with the dev (the interface name value that gets the packet) because when we 
+        # receive a packet we store the address of the host on the other end of the eth addr so if we get a pkt
+        # with that source we know what port to use to send the pkt there, because we know the source, we know how to send it there
+        
+        #ft[dev] = packet[0].src # THIS WORKS DON'T DELETE
+        #print(ft) 
+
+
+        log_debug ("In {} received packet {} on {}".format(net.name, packet, dev))
+        if packet[0].dst in mymacs:  # TODO write a test to see what happens when pkt intended for it
+            log_debug ("Packet intended for me")
+            print("packet intended for meeeeeeeeeeeeeeeeeeeeee")
+
+        # we have the key which is the interface name, if the intf.name we have is in the ft, check its values. These values are 
+        # the host addresses. When we receive them they're sources, when we send them they're destinations.
+        # This way we can determine which host addresses is associated with a particular interface name. 
+        # If the host address that we want to send to is not found within that interface (the key), then we will add it to values for
+        # that key
+
+ 
+
+        else:
+            print("\nHIT ELSE!!!!!!!!!")
+ 
+            found = False
+            
+            if (str(packet[0].dst) == "ff:ff:ff:ff:ff:ff"):
+                print("broadcast address")
+                found = True
+                for intf in my_interfaces:
+                    if dev != intf.name:
+                        log_debug ("Flooding packet {} to {}".format(packet, intf.name))
+                        net.send_packet(intf.name, packet) #send packet from current int port
+            ft[dev] = [packet[0].src, time.time()]
+ 
+            if not found:
+                for k, v in ft.items():
+                    print("dst, v: " +str(packet[0].dst) +' ' + str(v))
+                    if (v[0] == packet[0].dst):
+                        net.send_packet(k, packet)
+                        print("packet sent on k: " + str(k)) 
+                        found = True
+
+            if not found:
+                for intf in my_interfaces:
+
+                #if packet[0].dst in ft: # if the packet dst is in the forwarding table...
+                #    print("dst is in ft")
+                #    net.send_packet(ft.get(packet[0].dst), packet) # send the packet to the interface assoc. with the dst in ft
+                #print("dev = " + dev + ", intf.name = " + intf.name)
+                    if dev != intf.name:
+                        log_debug ("Flooding packet {} to {}".format(packet, intf.name))
+                        net.send_packet(intf.name, packet) #send packet from current int port
+
+
+               # TODO if destination is that broadcast address, then send it out over everything
+    net.shutdown()
